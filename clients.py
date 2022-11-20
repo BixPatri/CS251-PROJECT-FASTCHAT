@@ -2,7 +2,7 @@ import socket
 import threading
 
 #Take the input ID of the port you want to connect to
-port = int(input("Please Input port No "))
+port = 9087
 
 # Choosing Nickname
 ID = input("Enter Your ID: ")
@@ -16,13 +16,10 @@ client.connect(('localhost', port))
 def receive():
     while True:
         try:
-            # Receive Message From Server
-            # If 'NICK' Send Nickname
             message = client.recv(1024).decode('ascii')
+            print(message)
             if message == '/AUTH':
-                client.send(ID.encode('ascii'))
-            else:
-                print(message)
+                client.send((ID+":"+passwd).encode('ascii'))
         except:
             # Close Connection When Error
             print("An error occured!")
@@ -33,9 +30,11 @@ def receive():
 def write():
     while True:
         pID = input("kisko bhejna hai? ")
-        msg = input("Kya bhejna hai? ")
-        message = '{}: {}'.format(pID, msg)
+        msg = input("Are bhai kehna kya chahte ho? ")
+        message =pID+":"+msg
+        print(message)
         client.send(message.encode('ascii'))
+        
 
 # Starting Threads For Listening And Writing
 receive_thread = threading.Thread(target=receive)

@@ -2,7 +2,7 @@ import socket
 import threading
 
 host = 'localhost'
-port = int(input())
+port = 9087
 
 # Starting Server
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -27,6 +27,7 @@ def send_to(message,ID):
         if ID in groups.keys():
             client_IDS = groups[ID]
             for client_ID in client_IDS: 
+                print(client_ID)
                 ID_socket[client_ID].send(message.encode("ascii"))
             return True
     return False
@@ -35,16 +36,20 @@ def send_to(message,ID):
 def handle(client, clientID):
     while True:
         try:
-            # Broadcasting Messages
+            print("FUCK")
             message = client.recv(1024).decode('ascii')
-            # broadcast(message)
-            ID=message.split(":")[0]
-            msg = clientID+ ":" + message.split(":")[1]
-            ID=ID.strip()
+            print("maa")
+            ID=int(message.split(":")[0].strip())
+            print("ki")
+            msg = str(clientID)+ ":" + message.split(":")[1]
+            print(msg,ID)
             if send_to(msg,ID):
                 client.send(f"Received by {ID}".encode("ascii"))
+                print("chut") 
             else:
                 client.send(f"No such user".encode("ascii"))
+                print("vaginm")
+                
         except:
             client.close()
             print(f"{client} went offline")
@@ -53,20 +58,26 @@ def handle(client, clientID):
 # Receiving / Listening Function
 def receive():
     while True:
-        # Accept Connection
         client, address = server.accept()
-        print("Connected with {}".format(str(address)))
-
         # Request And Store Nickname
         client.send('/AUTH'.encode('ascii'))
-        ID=client.recv(1024).decode('ascii')
-        pass_hash = client.recv(1024).decode('ascii')
+        client_recv=client.recv(1024).decode('ascii')
+        ID=int(client_recv.split(":")[0].strip())
+        pass_hash = int(client_recv.split(":")[1].strip())
+        print(ID,pass_hash)
         if ID in ID_password.keys():
             if not ID_password[ID]==pass_hash:
-                client.send("Wrong password".encode("ascii"))  
+                client.send("Wrong password".encode("ascii"))
+                print("password sahi nahi dala")
+                client.close()
+                continue
+            else:
+                print("OK")
         else:
             ID_password[ID]=pass_hash
             ID_socket[ID]=client
+            print("adding new")
+        print("Connected with {}".format(str(address)))
         client.send('You are connected to a server!'.encode('ascii'))
 
         # Start Handling Thread For Client
