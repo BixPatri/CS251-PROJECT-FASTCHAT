@@ -49,36 +49,51 @@ def single_message(message, sender_ID):
     if not recipient:
         msg = {"type": "server", "message": "No such recipient"}
         clients[sender_ID].send(json.dumps(msg).encode(format)) 
-    if recipient[1] == 1:
+    elif recipient[1] == 1:
         msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
         clients[int(recipient[0])].send(json.dumps(msg).encode(format))
     else:
+        msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
+        curr.execute("""
+            SELECT "Pending Messages" FROM "Clients" WHERE "ID" = %s
+        """, (message["Recipient"],))
+        prev_msgs = curr.fetchone()[0]
+
         curr.execute("""
             UPDATE "Clients"
-            SET Pendi
-
-        """, (message["Recipient"],))
-
-    if message["Recipient"] in ID_socket.keys():
-        ID_socket[message["Recipient"]].send(mess_json("private "+str(ID),message[["message"]]).encode("ascii"))
-        return True
-    return False
+            SET "Pending Messages" = %s
+            WHERE "ID" = %s
+        """, (prev_msgs.append(json.dumps(msg)), message["Recipient"]))
+        db_conn.commit()
+    
+    curr.close()
 
 
 
 
-def handle_client(client):
+def handle_client(client, client_ID):
     while True:
         try:
             message = json.loads(client.recv(buffer).decode(format))
-            curr = db_conn.cursor()
-            if message["type"] == "client_reg":
-                curr.execute("""
+            msg_type = message["type"]
 
-                """)
-                
+            if msg_type == "single_message":
+                single_message(message, client_ID)
+            else:
+                print("invalid query")
 
         except:
+            client.close()
+            del clients[client_ID]
+            
+            curr = db_conn.cursor()
+            curr.execute("""
+                UPDATE "Clients"
+                SET "Status" = false
+                WHERE "ID" = %s
+            """,(client_ID,))
+            curr.close()
+            db_conn.commit()
             # index = clients.index(client)
             # clients.remove(client)
             # client.close()
@@ -131,8 +146,8 @@ def connect_servers():
 # Receiving / Listening Function
 def receive_client(client, ID):
     clients[ID] = client
-    msg = json.loads({"verified":1, "msg": "Welcome!"})
-    client.send(msg.encode(format))
+    msg = {"verified":1, "msg": "Welcome!"}
+    client.send(json.dumps(msg).encode(format))
     handle_client(client, ID)
 
 #Recieving a server.
@@ -145,16 +160,19 @@ def receive_server(sock, ID):
 def client_reg(credentials):
     curr = db_conn.cursor()
     curr.execute("""
-        INSERT INTO "Clients" ("Name", "Password", "Public Key", "Status")
-        VALUES (%s, %s, %s, %s)
-    """, (credentials["Name"], credentials["Pass"], credentials["Public Key"], True))
-    db_conn.commit()
+        SELECT COUNT("ID") FROM "Clients"
+    """)
+    count = curr.fetchone()[0]
 
     curr.execute("""
-        SELECT COUNT(ID) FROM "Clients"
-    """)
+        INSERT INTO "Clients" ("ID","Name", "Password", "Public Key", "Status")
+        VALUES (%s, %s, %s, %s, %s)
+    """, (count+1, credentials["Name"], credentials["Pass"], credentials["Public Key"], True))
+    db_conn.commit()
 
-    count = curr.fetchone()[0]
+    
+
+    
     curr.close()
 
     return count
@@ -194,13 +212,18 @@ def accept_connections():
                 sock.close()
                 continue
         elif credentials["type"] == "client_auth":
-            if not client_verify():
+            if not client_verify(credentials):
                 msg = json.loads({"verified":0, "msg": "Invalid credentials, please try again"})
                 sock.send(msg.encode(format))
                 sock.close()
                 continue
+            else:
+                msg = json.loads({"verified":1, "msg": "Successfully verified"})
+                sock.send(msg.encode(format))
         elif credentials["type"] == "client_reg":
             client_id = client_reg(credentials)
+            msg = {"type": "server", "ID": client_id}
+            sock.send(json.dumps(msg).encode(format))
         
 
         # curse = db_conn.cursor()
