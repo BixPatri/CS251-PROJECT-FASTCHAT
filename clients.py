@@ -7,8 +7,8 @@ import json
 def receive():
     while True:
         try:
-            message = client.recv(64).decode('ascii')
-            print(json.loads[""])
+            message = json.loads(client.recv(1024).decode('ascii'))
+            print(message["type"]+":"+message["text"])
             # if message == '/AUTH':
             #     # client.send((ID+":"+passwd).encode('ascii'))
             #     authenticate()
@@ -42,7 +42,7 @@ def create_group():
 
 def ban():
     g_ID=int(input("group_id"))
-    ban_ID=input("ban ID")
+    ban_ID=int(input("ban ID"))
     mess={"type":"ban","g_ID":g_ID,"ban_ID":ban_ID}
     client.send(json.dumps(mess).encode('ascii'))
 

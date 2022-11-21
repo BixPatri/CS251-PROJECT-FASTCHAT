@@ -5,6 +5,11 @@ import json
 host = 'localhost'
 port = int(input())
 
+def mess_json(t,text):
+    d={"type":t,"text":text}
+    return json.dumps(d)
+
+
 # Starting Server
 server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 server.bind((host, port))
@@ -19,30 +24,56 @@ ID_socket=dict()
 #Keys is the ID of the group and value is the list of all the ID of clients in the group
 groups = dict()
 
-def send_to(message,ID):
-    if(ID > 0): #Means it is a single person
-        if ID in ID_socket.keys():
-            ID_socket[ID].send(message.encode("ascii"))
-            return True
-    else:
-        if ID in groups.keys():
-            client_IDS = groups[ID]
-            for client_ID in client_IDS: 
-                print(client_ID)
-                ID_socket[client_ID].send(message.encode("ascii"))
-            return True
-    return False
+# def send_to(message,ID):
+#     if(ID > 0): #Means it is a single person
+#         if ID in ID_socket.keys():
+#             ID_socket[ID].send(message.encode("ascii"))
+#             return True
+#     else:
+#         if ID in groups.keys():
+#             client_IDS = groups[ID]
+#             for client_ID in client_IDS: 
+#                 print(client_ID)
+#                 ID_socket[client_ID].send(message.encode("ascii"))
+#             return True
+#     return False
         
 def single_message(message,ID):
-    print(message)
+    if message["Reciepient"]in ID_socket.keys():
+        ID_socket[message["Reciepient"]].send(mess_json("private "+str(ID),message[["message"]]).encode("ascii"))
+        return True
+    return False
 def group_message(message,ID):
-    print(message)
+    if message["Reciepient"] in groups.keys():
+        for i in groups["Reciepient"]:
+            ID_socket[i].send(mess_json("Group "+str(message["Reciepient"])+str(ID),message[["message"]]).encode("ascii"))
+        return True
+    return False
 def create_group(message,ID):
-    print(message)
+    if message["g_ID"] in groups.keys():
+        return False
+    else:
+        for member_ID in message["Members"]:
+            if member_ID not in ID_password.keys():
+                return False
+        for member_ID in message["Members"]:
+            ID_socket[member_ID].send(mess_json("Group "+str(message["g_ID"])+str(ID),"Added to Group with"+str(message["Members"])))
+        groups[message["g_ID"]]=message["Members"]
+        return True
 def ban(message,ID):
-    print(message)
+    if message["g_ID"] in groups.keys():
+        if ID==groups[message["g_ID"]][0]:#admin check
+            if message["ban_ID"] in groups[message["g_ID"]]:
+                groups[message["g_ID"]].remove(message["ban_ID"])
+                return True
+    return False
 def del_group(message,ID):
-    print(message)
+    if message["g_ID"] in groups.keys():
+        if ID==groups[message["g_ID"]][0]:#admin check
+            del groups[message["g_ID"]]
+            return True
+    return False
+    # print(message)
 # Handling Messages From Clients
 def handle(client, clientID):
     while True:
@@ -86,6 +117,7 @@ def handle(client, clientID):
 
 def Verify(credentials):
     return credentials["password"]==ID_password[credentials["ID"]]
+
 def Add(credentials,client):
     ID_password[credentials["ID"]]=credentials["password"]
     ID_socket[credentials["ID"]]=client
@@ -98,16 +130,14 @@ def receive():
         credentials=json.loads(credentials)
         if credentials["ID"] in ID_password.keys():
             if not Verify(credentials):
-                client.send("""ID already Present
-                                Wrong Password""")
+                client.send(mess_json("server","""ID already Present Wrong Password""").encode('ascii'))
                 client.close()
                 continue
             else:
-                client.send("""ID already Present
-                                Verified""")
+                client.send(mess_json("server","""ID already Present Verified""").encode('ascii'))
         else:
             Add(credentials,client)
-            client.send("""New ID created""".encode("ascii"))
+            client.send(mess_json("server","""New ID created""").encode("ascii"))
         print("Connected with {}".format(str(address)))
         thread = threading.Thread(target=handle, args=(client,credentials["ID"]))
         thread.start()
