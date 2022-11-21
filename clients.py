@@ -106,8 +106,8 @@ def authenticate():
     client.send(json.dumps(Credentials).encode('ascii'))
 
 authenticate()
-welcome_message=client.recv(1024).decode('ascii')
-print(welcome_message)
+# welcome_message=client.recv(1024).decode('ascii')
+# print(welcome_message)
 print("""
 To message-type "single_message" then the message then the message text
 To Group_message-type "group_message" then the message then the message text

@@ -65,6 +65,7 @@ def ban(message,ID):
         if ID==groups[message["g_ID"]][0]:#admin check
             if message["ban_ID"] in groups[message["g_ID"]]:
                 groups[message["g_ID"]].remove(message["ban_ID"])
+                ID_socket[message["ban_ID"]].send(mess_json("Group "+str(message["g_ID"]),"Banned from group by admin"))
                 return True
     return False
 def del_group(message,ID):
@@ -83,33 +84,33 @@ def handle(client, clientID):
             print(mess['type'])
             print(type(mess))
             if mess['type']=="single_message":
-                print("HI")
-                single_message(mess,clientID)
+                if single_message(mess,clientID):
+                    client.send(mess_json("server","message sent").encode('ascii'))
+                else:
+                    client.send(mess_json("server","message sending failed").encode('ascii'))
             elif mess['type']=="group_message":
-                group_message(mess,clientID)
+                if group_message(mess,clientID):
+                    client.send(mess_json("server","message sent").encode('ascii'))
+                else:
+                    client.send(mess_json("server","message sending failed").encode('ascii'))
             elif mess['type']=="create_group":
-                create_group(mess,clientID)
+                if create_group(mess,clientID):
+                    client.send(mess_json("server","group created").encode('ascii'))
+                else:
+                    client.send(mess_json("server","group creation failed").encode('ascii'))
             elif mess['type']=="ban":
-                ban(mess,clientID)
+                if ban(mess,clientID):
+                    client.send(mess_json("server","ban successful").encode('ascii'))
+                else:
+                    client.send(mess_json("server","ban unsuccessful").encode('ascii'))
             elif mess['type']=="del_group":
-                del_group(mess,clientID)
-            else:
-                print("H2I")
-                print("Invalid request")
-            print("H3I")
-            # if message
-            # ID=int(message.split(":")[0].strip())
-            # msg = message.split(":")[1]
-            # if msg[0]=="/":
-            #     command(msg)
-            #     continue
-            # msg=str(clientID)+ ":" + msg
-            # print(msg,ID)
-            # if send_to(msg,ID):
-            #     client.send(f"Received by {ID}".encode("ascii"))
-            # else:
-            #     client.send(f"No such user".encode("ascii"))
+                if del_group(mess,clientID):
+                    client.send(mess_json("server","group deleted").encode('ascii'))
+                else:
+                    client.send(mess_json("server","group not deleted").encode('ascii'))
                 
+            else:
+                print("invalid query")
         except:
             client.close()
             print(f"{client} went offline")
