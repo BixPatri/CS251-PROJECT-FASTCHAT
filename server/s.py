@@ -37,12 +37,45 @@ def handle_server(server):
             # aliases.remove(alias)
             break
 
+
+
+def single_message(message, sender_ID):
+    curr = db_conn.cursor()
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" = %s
+    """, (message["Recipient"],))
+    recipient = curr.fetchone()
+    
+    if not recipient:
+        msg = {"type": "server", "message": "No such recipient"}
+        clients[sender_ID].send(json.dumps(msg).encode(format)) 
+    if recipient[1] == 1:
+        msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
+        clients[int(recipient[0])].send(json.dumps(msg).encode(format))
+    else:
+        curr.execute("""
+            UPDATE "Clients"
+            SET Pendi
+
+        """, (message["Recipient"],))
+
+    if message["Recipient"] in ID_socket.keys():
+        ID_socket[message["Recipient"]].send(mess_json("private "+str(ID),message[["message"]]).encode("ascii"))
+        return True
+    return False
+
+
+
+
 def handle_client(client):
     while True:
         try:
             message = json.loads(client.recv(buffer).decode(format))
-
+            curr = db_conn.cursor()
             if message["type"] == "client_reg":
+                curr.execute("""
+
+                """)
                 
 
         except:
@@ -96,37 +129,50 @@ def connect_servers():
 
 
 # Receiving / Listening Function
-def receive_client(client):
-    # clients[ID] = client
-    # # Request And Store Nickname
-    # client.send('/AUTH'.encode('ascii'))
-    # client_recv=client.recv(1024).decode('ascii')
-    # ID=int(client_recv.split(":")[0].strip())
-    # pass_hash = int(client_recv.split(":")[1].strip())
-    # print(ID,pass_hash)
-    # if ID in ID_password.keys():
-    #     if not ID_password[ID]==pass_hash:
-    #         client.send("Wrong password".encode("ascii"))
-    #         print("password sahi nahi dala")
-    #         client.close()
-    #         continue
-    #     else:
-    #         print("OK")
-    # else:
-    #     ID_password[ID]=pass_hash
-    #     ID_socket[ID]=client
-    #     print("adding new")
-    # print("Connected with {}".format(str(address)))
-    # client.send('You are connected to a server!'.encode('ascii'))
-
-    # Start Handling Thread For Client
-    thread = threading.Thread(target=handle_client, args=(client,))
-    thread.start()
+def receive_client(client, ID):
+    clients[ID] = client
+    msg = json.loads({"verified":1, "msg": "Welcome!"})
+    client.send(msg.encode(format))
+    handle_client(client, ID)
 
 #Recieving a server.
 def receive_server(sock, ID):
     other_servers[ID] = sock
     handle_server(sock)
+
+
+# TODO Hashing password
+def client_reg(credentials):
+    curr = db_conn.cursor()
+    curr.execute("""
+        INSERT INTO "Clients" ("Name", "Password", "Public Key", "Status")
+        VALUES (%s, %s, %s, %s)
+    """, (credentials["Name"], credentials["Pass"], credentials["Public Key"], True))
+    db_conn.commit()
+
+    curr.execute("""
+        SELECT COUNT(ID) FROM "Clients"
+    """)
+
+    count = curr.fetchone()[0]
+    curr.close()
+
+    return count
+
+def client_verify(credentials):
+    curr = db_conn.cursor()
+    curr.execute("""
+        SELECT "Password" FROM "Clients" WHERE "ID" = %s
+    """, (credentials["ID"],))
+    curr.close()
+
+    if credentials["Pass"] == curr.fetchone()[0]:
+        return True
+    else:
+        return False
+
+
+
 
 #A function which runs in an infinite loop and main purpose of this is to listen to any new connection.
 def accept_connections():
@@ -146,12 +192,15 @@ def accept_connections():
                 server_id = credentials["ID"]
             else:
                 sock.close()
+                continue
         elif credentials["type"] == "client_auth":
             if not client_verify():
+                msg = json.loads({"verified":0, "msg": "Invalid credentials, please try again"})
+                sock.send(msg.encode(format))
                 sock.close()
+                continue
         elif credentials["type"] == "client_reg":
-            if not client_reg():
-                sock.close()
+            client_id = client_reg(credentials)
         
 
         # curse = db_conn.cursor()
@@ -169,7 +218,7 @@ def accept_connections():
             receive_server_thread.start()
         else:
             print(f"Connected to client with IP:{addr[0]}, Port:{addr[1]}")
-            receive_client_thread = threading.Thread(target=receive_client, args=(sock,))
+            receive_client_thread = threading.Thread(target=receive_client, args=(sock,client_id))
             receive_client_thread.start()
 
 
