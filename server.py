@@ -37,7 +37,7 @@ groups = dict()
 #                 ID_socket[client_ID].send(message.encode("ascii"))
 #             return True
 #     return False
-        
+
 def single_message(message,ID):
     if message["Reciepient"]in ID_socket.keys():
         ID_socket[message["Reciepient"]].send(mess_json("private "+str(ID),message[["message"]]).encode("ascii"))
