@@ -1,8 +1,13 @@
+import os
 import socket
 import threading
 import json
 import sys
 from connect import connect
+from packets import send_msg
+from packets import recv_msg
+import base64
+
 
 buffer = 1024
 format = 'utf-8'
@@ -82,12 +87,20 @@ def connect_servers():
 def handle_server(server):
     while True:
         try:
-            message = server.recv(buffer).decode(format)
-            print("msg", message)
+            # message = server.recv(buffer).decode(format)
+            message = recv_msg(server).decode(format)
+            # print("msg", message)
             message = json.loads(message)
 
-            # if message["type"] == "single_message":
-            #     print(message["ID"], message["message"])
+            if message["type"] == "single_message":
+                # print(message["ID"], message["message"])
+                print("msg", message)
+            elif message["type"] == "single_image":
+                # print(message["ID"], message["message"])
+                print("image")
+                with open("received_"+message["title"], mode='wb') as file:
+                    file.write(base64.decodebytes(message["message"].encode(format)))
+            
 
         except Exception as error:
             print(error)
@@ -115,7 +128,20 @@ def single_message():
     recipient = int(input("Reciever"))
     message = input("Message Text")
     msg = {"type":"single_message", "Recipient":recipient, "message":message, "ID":my_ID}
-    servers[curr_server_ID].send(json.dumps(msg).encode(format))
+    send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
+    # servers[curr_server_ID].send(json.dumps(msg).encode(format))
+
+def single_image():
+    recipient = int(input("Reciever"))
+    path = input("Image path? ")
+    title = os.path.basename(path)
+    img = None
+    with open(path, mode='rb') as file:
+        img = file.read()
+    msg = {"type":"single_image","title": title, "Recipient":recipient, "message":base64.encodebytes(img).decode(format), "ID":my_ID}
+    # msg["message"] = 
+    send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
+    # servers[curr_server_ID].send(json.dumps(msg).encode(format))
 
 def group_message():
     Group=int(input("Reciever"))
@@ -149,6 +175,8 @@ def Command(Command_type):
         create_group()
     elif Command_type=="single_message":
         single_message()
+    elif Command_type == "single_image":
+        single_image()
     elif Command_type=="group_message":
         group_message()
     elif Command_type=="ban":

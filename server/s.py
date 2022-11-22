@@ -4,6 +4,8 @@ import threading
 import socket
 import json
 from connect import connect
+from packets import send_msg
+from packets import recv_msg
 
 buffer = 1024
 format = 'utf-8'
@@ -53,7 +55,39 @@ def single_message(message, sender_ID):
         clients[sender_ID].send(json.dumps(msg).encode(format)) 
     elif recipient[1] == 1:
         msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
-        clients[int(recipient[0])].send(json.dumps(msg).encode(format))
+        # clients[int(recipient[0])].send(json.dumps(msg).encode(format))
+        send_msg(clients[int(recipient[0])], json.dumps(msg).encode(format))
+    else:
+        msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
+        curr.execute("""
+            SELECT "Pending Messages" FROM "Clients" WHERE "ID" = %s
+        """, (message["Recipient"],))
+        prev_msgs = curr.fetchone()[0]
+
+        curr.execute("""
+            UPDATE "Clients"
+            SET "Pending Messages" = %s
+            WHERE "ID" = %s
+        """, (prev_msgs.append(json.dumps(msg)), message["Recipient"]))
+        db_conn.commit()
+    
+    curr.close()
+
+
+def single_image(message, sender_ID):
+    curr = db_conn.cursor()
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" = %s
+    """, (message["Recipient"],))
+    recipient = curr.fetchone()
+    
+    if not recipient:
+        msg = {"type": "server", "message": "No such recipient"}
+        clients[sender_ID].send(json.dumps(msg).encode(format)) 
+    elif recipient[1] == 1:
+        msg = {"type": message["type"],"title": message["title"], "message": message["message"], "ID": sender_ID}
+        # clients[int(recipient[0])].send(json.dumps(msg).encode(format))
+        send_msg(clients[int(recipient[0])], json.dumps(msg).encode(format))
     else:
         msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
         curr.execute("""
@@ -74,11 +108,14 @@ def single_message(message, sender_ID):
 def handle_client(client, client_ID):
     while True:
         try:
-            message = json.loads(client.recv(buffer).decode(format))
+            message = json.loads(recv_msg(client).decode(format))
+            # message = json.loads(client.recv(buffer).decode(format))
             msg_type = message["type"]
 
             if msg_type == "single_message":
                 single_message(message, client_ID)
+            elif msg_type == "single_image":
+                single_image(message, client_ID)
             else:
                 print("invalid query")
 
@@ -178,6 +215,11 @@ def client_verify(credentials):
     """, (credentials["ID"],))
     
     if credentials["Pass"] == curr.fetchone()[0]:
+        curr.execute("""
+            UPDATE "Clients"
+            SET "Status" = true
+            WHERE "ID" = %s
+        """, (credentials["ID"],))
         curr.close()
         return int(credentials["ID"])
     else:
