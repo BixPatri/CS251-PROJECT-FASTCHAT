@@ -8,10 +8,10 @@ buffer = 1024
 format = 'utf-8'
 
 balancerIP = "localhost"
-balancerPort = 9090
+balancerPort = 9091
 
-my_name = "Kevin"
-my_pass = "hello"
+# my_name = "Kevin"
+# my_pass = "hello"
 my_ID = -1
 curr_server_ID = 0
 
@@ -22,11 +22,8 @@ servers = {}
 
 def get_server(balancer):
     balancer.send("gib server".encode(format))
-
     server_id = balancer.recv(buffer).decode(format)
-    return server_id
-
-
+    return int(server_id)
 
 def register(server):
     IP = server[1]
@@ -34,7 +31,7 @@ def register(server):
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     sock.connect((IP, Port))
-    credentials = {"type":"client_reg", "Name":my_name, "Pass":"hello", "Public Key":"1234"}
+    credentials = {"type":"client_reg", "Name":my_name, "Pass":my_pass, "Public Key":"1234"}
     sock.send(json.dumps(credentials).encode(format))
     received_info = json.loads(sock.recv(buffer).decode(format))
     id = received_info["ID"]
@@ -44,25 +41,28 @@ def register(server):
     return id
 
 def connect_server(server):
-    ID = server[0]
+    ID = int(server[0])
     IP = server[1]
     Port = int(server[2])
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    sock.connect((IP, Port))
-    global my_pass
     while(True):
-        credentials = {"type":"client_auth", "Name":my_name, "password":my_pass, "Public Key":"1234", "ID": my_ID}
+        sock.connect((IP, Port))
+        global my_pass
+        credentials = {"type":"client_auth", "Name":my_name, "Pass":my_pass, "Public Key":"1234", "ID": my_ID}
         sock.send(json.dumps(credentials).encode(format))
 
-        allowed = json.loads(sock.recv(buffer).decode(format))
+        allowed = sock.recv(buffer).decode(format)
+        print(allowed)
+        allowed = json.loads(allowed)
         if allowed["verified"]:
             print(f"Connected to server with ID:{ID}, IP:{IP}, Port:{Port}")
-            server[ID] = sock
+            servers[ID] = sock
             handle_server(sock)
             break
         else:
             my_pass = input("Re-Enter the Password: ")
+            sock.close()
 
 def connect_servers():
     db_cur.execute("""
@@ -82,12 +82,15 @@ def connect_servers():
 def handle_server(server):
     while True:
         try:
-            message = json.loads(server.recv(buffer).decode(format))
-            # TODO
-            if message["type"] == "single_message":
-                print(message["ID"], message["message"])
+            message = server.recv(buffer).decode(format)
+            print("msg", message)
+            message = json.loads(message)
 
-        except:
+            # if message["type"] == "single_message":
+            #     print(message["ID"], message["message"])
+
+        except Exception as error:
+            print(error)
             server.close()
             print("An error occured!")
             break
@@ -217,30 +220,31 @@ def write(balancer_sock):
 
 
 
-if __name__ == "__main__":
-    my_ID = int(sys.argv[1])
-    # Choosing Nickname
-    # ID = int(input("Enter Your ID: "))
-    my_name = input("Enter Your Name: ")
-    my_pass = input("Enter Your Password: ")
-    
+# if __name__ == "__main__":
+#     global my_ID
+#     global my_name
+#     global my_pass
+my_ID = int(sys.argv[1])
+# Choosing Nickname
+# ID = int(input("Enter Your ID: "))
+my_name = input("Enter Your Name: ")
+my_pass = input("Enter Your Password: ")
 
-    connect_servers()
-    # connect_balancer()
-    balancer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    balancer.connect((balancerIP, balancerPort))
+connect_servers()
+# connect_balancer()
+balancer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+balancer.connect((balancerIP, balancerPort))
     
     
-    print("""
-        To message-type "single_message" then the message then the message text
-        To Group_message-type "group_message" then the message then the message text
-        To Create Group-type "create_group" then group id then members(space separated)
-        To ban from group-type "ban" then group id and then ban id
-        To delete Group- type "del_group" then group id
-    """)
-
-    # Starting Threads For Listening And Writing
-    write_thread = threading.Thread(target=write, args=(balancer,))
-    write_thread.start()
+print("""
+    To message-type "single_message" then the message then the message text
+    To Group_message-type "group_message" then the message then the message text
+    To Create Group-type "create_group" then group id then members(space separated)
+    To ban from group-type "ban" then group id and then ban id
+    To delete Group- type "del_group" then group id
+""")
+# Starting Threads For Listening And Writing
+write_thread = threading.Thread(target=write, args=(balancer,))
+write_thread.start()
 
     

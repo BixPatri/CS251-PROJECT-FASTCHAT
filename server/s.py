@@ -29,6 +29,8 @@ def handle_server(server):
         try:
             message = server.recv(1024)
         except:
+            print("A server-server error occured!")
+            server.close()
             # index = socks.index(sock)
             # socks.remove(sock)
             # sock.close()
@@ -69,8 +71,6 @@ def single_message(message, sender_ID):
     curr.close()
 
 
-
-
 def handle_client(client, client_ID):
     while True:
         try:
@@ -105,7 +105,7 @@ def handle_client(client, client_ID):
 
 
 def connect_server(server):
-    ID = server[0]
+    ID = int(server[0])
     IP = server[1]
     Port = int(server[2])
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -146,8 +146,6 @@ def connect_servers():
 # Receiving / Listening Function
 def receive_client(client, ID):
     clients[ID] = client
-    msg = {"verified":1, "msg": "Welcome!"}
-    client.send(json.dumps(msg).encode(format))
     handle_client(client, ID)
 
 #Recieving a server.
@@ -162,32 +160,29 @@ def client_reg(credentials):
     curr.execute("""
         SELECT COUNT("ID") FROM "Clients"
     """)
-    count = curr.fetchone()[0]
+    count = int(curr.fetchone()[0])
 
     curr.execute("""
         INSERT INTO "Clients" ("ID","Name", "Password", "Public Key", "Status")
         VALUES (%s, %s, %s, %s, %s)
     """, (count+1, credentials["Name"], credentials["Pass"], credentials["Public Key"], True))
-    db_conn.commit()
-
-    
-
-    
+    db_conn.commit()    
     curr.close()
 
-    return count
+    return (count+1)
 
 def client_verify(credentials):
     curr = db_conn.cursor()
     curr.execute("""
         SELECT "Password" FROM "Clients" WHERE "ID" = %s
     """, (credentials["ID"],))
-    curr.close()
-
+    
     if credentials["Pass"] == curr.fetchone()[0]:
-        return True
+        curr.close()
+        return int(credentials["ID"])
     else:
-        return False
+        curr.close()
+        return 0
 
 
 
@@ -203,7 +198,7 @@ def accept_connections():
 
         is_server = 0
         server_id = None
-
+        client_id = None
         if credentials["type"] == "server_auth":
             if credentials["password"] == "server_pass":
                 is_server = 1
@@ -212,19 +207,22 @@ def accept_connections():
                 sock.close()
                 continue
         elif credentials["type"] == "client_auth":
-            if not client_verify(credentials):
-                msg = json.loads({"verified":0, "msg": "Invalid credentials, please try again"})
+            client_id = client_verify(credentials)
+            if not client_id:
+                msg = json.dumps({"verified":0, "msg": "Invalid credentials, please try again"})
                 sock.send(msg.encode(format))
                 sock.close()
                 continue
             else:
-                msg = json.loads({"verified":1, "msg": "Successfully verified"})
+                msg = json.dumps({"verified":1, "msg": "Successfully verified"})
                 sock.send(msg.encode(format))
         elif credentials["type"] == "client_reg":
             client_id = client_reg(credentials)
             msg = {"type": "server", "ID": client_id}
             sock.send(json.dumps(msg).encode(format))
-        
+            sock.close()
+            continue
+
 
         # curse = db_conn.cursor()
         # curse.execute("""
