@@ -25,6 +25,26 @@ clients = {}
 
 (db_conn, db_cur) = connect()
 
+def send_client(status, ID, msg):
+    # todo: add acknowledgement
+    curr = db_conn.cursor()
+    if status:
+        send_msg(clients[ID], json.dumps(msg).encode(format))
+        # clients[ID].send(json.dumps(msg).encode(format))
+    else:
+        curr.execute("""
+            SELECT "Pending Messages" FROM "Clients" WHERE "ID" = %s
+        """, (ID,))
+        prev_msgs = curr.fetchone()[0]
+        if prev_msgs==None:
+            prev_msgs=[]
+        curr.execute("""
+            UPDATE "Clients"
+            SET "Pending Messages" = %s
+            WHERE "ID" = %s
+        """, (prev_msgs.append(json.dumps(msg)), ID))
+        db_conn.commit()
+    curr.close()
 
 def handle_server(server):
     while True:
@@ -41,7 +61,155 @@ def handle_server(server):
             # aliases.remove(alias)
             break
 
+def create_group(message, client_ID):
 
+    curr = db_conn.cursor()
+    participants = message["Members"]
+    for p in participants:
+        if p not in clients.keys():
+            curr.close()
+            return False
+
+    curr.execute("""
+        SELECT COUNT("ID") FROM "Groups";
+    """)
+
+    gid = (int(curr.fetchone()[0])+1)
+
+    msg = "You are added to group" + message["Group_Name"] + "by" + str(client_ID) + "with Group Id " + str(gid)
+    msg = {"type":"New_group","message":msg}
+
+    # print("hm")
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" IN %s
+    """, (tuple(participants),))
+    participants_all = curr.fetchall()
+    # print(msg)
+    print(participants_all)
+    for p in participants_all:
+        # print(p)
+        send_client(p[1],p[0],msg)
+
+    curr.execute("""
+            INSERT INTO "Groups" ("ID", "Name", "Admin ID", "Participants") VALUES (%s,%s,%s,%s)
+        """, (gid, message["Group_Name"],client_ID,participants))
+    db_conn.commit()
+
+    curr.close()
+    return True
+    
+def group_message(message,client_ID):
+    curr = db_conn.cursor()
+    curr.execute("""
+        SELECT "Participants" FROM "Groups" WHERE "ID" = %s
+    """,(message["group_id"],))
+    participants = curr.fetchall()[0]
+    participants.remove(client_ID)
+    message["Sender"] = client_ID
+
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" IN %s
+    """, (tuple(participants),))
+
+    participants_all = curr.fetchall()
+    for p in participants_all:
+        send_client(p[1],p[0],message)
+
+def kick(message, client_ID):
+    curr = db_conn.cursor()
+    curr.execute("""
+        SELECT "Participants","Admin ID" FROM "Groups" WHERE "ID" = %s
+    """, (message["g_ID"],))
+    
+    old_party = curr.fetchone()
+    if old_party[1]!=client_ID:
+        return False
+    old_party=old_party[0]
+    print(old_party)
+    old_party.remove(message["ban_ID"])
+    print(old_party)
+    curr.execute("""
+            UPDATE "Groups"
+            SET "Participants" = %s
+            WHERE "ID" = %s
+        """, (old_party, message["g_ID"]))
+    db_conn.commit()
+
+
+    message["message"] = str(message["ban_ID"]) + " was KICKED to the group " + str(message["g_ID"]) + "by " + str(client_ID)
+    
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" IN %s
+    """,(tuple(old_party),))
+    old_stat = curr.fetchall()
+
+    for a in old_stat:
+        send_client(a[1],a[0],message)
+    
+
+    curr.execute("""
+        SELECT "Status" FROM "Clients" WHERE "ID" = %s
+    """,(message["ban_ID"],))
+    statustokick = curr.fetchone()[0]
+    message["message"] = "You were kicked from group" + str(message["g_ID"]) + "by " + str(client_ID)
+    send_client(statustokick,message["ban_ID"],message)
+    curr.close()
+    
+def add(message , client_ID):
+    print(message)
+    curr = db_conn.cursor()
+    if message["add_ID"] not in clients.keys():
+        return False
+    print("HI")
+    curr.execute("""
+        SELECT "Participants","Admin ID" FROM "Groups" WHERE "ID" = %s
+    """, (message["g_ID"],))
+    print("hm")
+    old_party = curr.fetchone()
+    if old_party[1]!=client_ID:
+        return False
+    print("hm")
+
+    old_party=old_party[0]
+    new_party=old_party+[]
+    new_party.append(message["add_ID"])
+    
+    print(old_party,new_party)
+    curr.execute("""
+            UPDATE "Groups"
+            SET "Participants" = %s
+            WHERE "ID" = %s
+        """, (new_party, message["g_ID"]))
+    db_conn.commit()
+    print("hm")
+
+    curr.execute("""
+        SELECT "Status" FROM "Clients" WHERE "ID" = %s
+    """,(message["add_ID"],))
+    statustoadd = curr.fetchone()[0]
+    print("hm")
+
+    message["message"] = str(message["add_ID"]) + " was added to the group " + str(message["g_ID"]) + "by " + str(client_ID)
+    
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" IN %s
+    """,(tuple(old_party),))
+    old_stat = curr.fetchall()
+    print("hm")
+
+    for a in old_stat:
+        send_client(a[1],a[0],message)
+
+    message["message"] = "You were Added to group " + str(message["g_ID"]) + "by " + str(client_ID)
+    
+    send_client(statustoadd,message["add_ID"],message)
+    db_conn.commit()
+    print("hm")
+
+    curr.close()
+
+def del_group(message,client_ID):
+    pass
 
 def single_message(message, sender_ID):
     curr = db_conn.cursor()
@@ -50,27 +218,28 @@ def single_message(message, sender_ID):
     """, (message["Recipient"],))
     recipient = curr.fetchone()
     
-    if not recipient:
-        msg = {"type": "server", "message": "No such recipient"}
-        clients[sender_ID].send(json.dumps(msg).encode(format)) 
-    elif recipient[1] == 1:
-        msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
-        # clients[int(recipient[0])].send(json.dumps(msg).encode(format))
-        send_msg(clients[int(recipient[0])], json.dumps(msg).encode(format))
-    else:
-        msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
-        curr.execute("""
-            SELECT "Pending Messages" FROM "Clients" WHERE "ID" = %s
-        """, (message["Recipient"],))
-        prev_msgs = curr.fetchone()[0]
+    # if not recipient:
+    #     msg = {"type": "server", "message": "No such recipient"}
+    #     send_msg(clients[sender_ID], json.dumps(msg).encode(format))
+        # clients[sender_ID].send(json.dumps(msg).encode(format)) 
+    # elif recipient[1] == 1:
+    #     msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
+    #     clients[int(recipient[0])].send(json.dumps(msg).encode(format))
+    # else:
+    #     msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
+    #     curr.execute("""
+    #         SELECT "Pending Messages" FROM "Clients" WHERE "ID" = %s
+    #     """, (message["Recipient"],))
+    #     prev_msgs = curr.fetchone()[0]
 
-        curr.execute("""
-            UPDATE "Clients"
-            SET "Pending Messages" = %s
-            WHERE "ID" = %s
-        """, (prev_msgs.append(json.dumps(msg)), message["Recipient"]))
-        db_conn.commit()
-    
+    #     curr.execute("""
+    #         UPDATE "Clients"
+    #         SET "Pending Messages" = %s
+    #         WHERE "ID" = %s
+    #     """, (prev_msgs.append(json.dumps(msg)), message["Recipient"]))
+    #     db_conn.commit()
+    msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
+    send_client(recipient[1],recipient[0],msg)
     curr.close()
 
 
@@ -81,27 +250,29 @@ def single_image(message, sender_ID):
     """, (message["Recipient"],))
     recipient = curr.fetchone()
     
-    if not recipient:
-        msg = {"type": "server", "message": "No such recipient"}
-        clients[sender_ID].send(json.dumps(msg).encode(format)) 
-    elif recipient[1] == 1:
-        msg = {"type": message["type"],"title": message["title"], "message": message["message"], "ID": sender_ID}
-        # clients[int(recipient[0])].send(json.dumps(msg).encode(format))
-        send_msg(clients[int(recipient[0])], json.dumps(msg).encode(format))
-    else:
-        msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
-        curr.execute("""
-            SELECT "Pending Messages" FROM "Clients" WHERE "ID" = %s
-        """, (message["Recipient"],))
-        prev_msgs = curr.fetchone()[0]
+    # if not recipient:
+    #     msg = {"type": "server", "message": "No such recipient"}
+    #     send_msg(clients[sender_ID], json.dumps(msg).encode(format))
+        # clients[sender_ID].send(json.dumps(msg).encode(format)) 
+    # elif recipient[1] == 1:
+    #     msg = {"type": message["type"],"title": message["title"], "message": message["message"], "ID": sender_ID}
+    #     # clients[int(recipient[0])].send(json.dumps(msg).encode(format))
+    #     send_msg(clients[int(recipient[0])], json.dumps(msg).encode(format))
+    # else:
+    #     msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
+    #     curr.execute("""
+    #         SELECT "Pending Messages" FROM "Clients" WHERE "ID" = %s
+    #     """, (message["Recipient"],))
+    #     prev_msgs = curr.fetchone()[0]
 
-        curr.execute("""
-            UPDATE "Clients"
-            SET "Pending Messages" = %s
-            WHERE "ID" = %s
-        """, (prev_msgs.append(json.dumps(msg)), message["Recipient"]))
-        db_conn.commit()
-    
+    #     curr.execute("""
+    #         UPDATE "Clients"
+    #         SET "Pending Messages" = %s
+    #         WHERE "ID" = %s
+    #     """, (prev_msgs.append(json.dumps(msg)), message["Recipient"]))
+    #     db_conn.commit()
+    msg = {"type": message["type"],"title": message["title"], "message": message["message"], "ID": sender_ID}
+    send_client(recipient[1],recipient[0],msg)
     curr.close()
 
 
@@ -116,6 +287,14 @@ def handle_client(client, client_ID):
                 single_message(message, client_ID)
             elif msg_type == "single_image":
                 single_image(message, client_ID)
+            elif msg_type == "create_group":
+                create_group(message, client_ID)
+            elif msg_type == "group_message":
+                group_message(message, client_ID)
+            elif msg_type == "kick":
+                kick(message, client_ID)    
+            elif msg_type == "add":
+                add(message, client_ID)    
             else:
                 print("invalid query")
 
@@ -215,11 +394,6 @@ def client_verify(credentials):
     """, (credentials["ID"],))
     
     if credentials["Pass"] == curr.fetchone()[0]:
-        curr.execute("""
-            UPDATE "Clients"
-            SET "Status" = true
-            WHERE "ID" = %s
-        """, (credentials["ID"],))
         curr.close()
         return int(credentials["ID"])
     else:

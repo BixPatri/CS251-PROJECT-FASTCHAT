@@ -8,7 +8,6 @@ from packets import send_msg
 from packets import recv_msg
 import base64
 
-
 buffer = 1024
 format = 'utf-8'
 
@@ -89,9 +88,12 @@ def handle_server(server):
         try:
             # message = server.recv(buffer).decode(format)
             message = recv_msg(server).decode(format)
-            # print("msg", message)
+            print("hello")
+            print("msg", message)
             message = json.loads(message)
 
+            # if message["type"] == "single_message":
+            #     print(message["ID"], message["message"])
             if message["type"] == "single_message":
                 # print(message["ID"], message["message"])
                 print("msg", message)
@@ -100,29 +102,14 @@ def handle_server(server):
                 print("image")
                 with open("received_"+message["title"], mode='wb') as file:
                     file.write(base64.decodebytes(message["message"].encode(format)))
-            
+            else:
+                print(message)
 
         except Exception as error:
             print(error)
             server.close()
             print("An error occured!")
             break
-
-
-# # Listening to Server and Sending Nickname
-# def receive():
-#     while True:
-#         try:
-#             message = json.loads(servers[curr_server_ID].recv(buffer).decode(format))
-#             print(message["type"]+":"+message["text"])
-#             # if message == '/AUTH':
-#             #     # client.send((ID+":"+passwd).encode(format))
-#             #     authenticate()
-            
-#         except:
-#             print("An error occured!")
-#             servers[curr_server_ID].close()
-#             break
 
 def single_message():
     recipient = int(input("Reciever"))
@@ -141,34 +128,44 @@ def single_image():
     msg = {"type":"single_image","title": title, "Recipient":recipient, "message":base64.encodebytes(img).decode(format), "ID":my_ID}
     # msg["message"] = 
     send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
-    # servers[curr_server_ID].send(json.dumps(msg).encode(format))
 
 def group_message():
-    Group=int(input("Reciever"))
-    message=input("Message Text")
-    mess={"type":"group_message","Reciepient":Group,"message":message}
-    client.send(json.dumps(mess).encode(format))
+    Group=int(input("group_id "))
+    message=input("Message Text ")
+    mess={"type":"group_message","group_id":Group,"message":message}
+    send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
+    # servers[curr_server_ID].send(json.dumps(mess).encode(format))
 
 def create_group():
-    g_ID=int(input("group_id"))
-    mem=input("members")
-    Members=[Credentials["ID"]]
+    g_ID=input("Group_Name")
+    mem=input("Members")
+    Members=[my_ID]
     for member in mem.split():
         Members.append(int(member))
-    mess={"type":"create_group","g_ID":g_ID,"Members":Members}
-    client.send(json.dumps(mess).encode(format))
+    mess={"type":"create_group","Group_Name":g_ID,"Members":Members}
+    send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
+    # servers[curr_server_ID].send(json.dumps(mess).encode(format))
 
-
-def ban():
+def kick():
     g_ID=int(input("group_id"))
     ban_ID=int(input("ban ID"))
-    mess={"type":"ban","g_ID":g_ID,"ban_ID":ban_ID}
-    client.send(json.dumps(mess).encode(format))
+    mess={"type":"kick","g_ID":g_ID, "ban_ID":ban_ID}
+    send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
+    # servers[curr_server_ID].send(json.dumps(mess).encode(format))
+
+def add():
+    g_ID=int(input("group_id"))
+    add_ID=int(input("add ID"))
+    mess={"type":"add","g_ID":g_ID, "add_ID":add_ID}
+    # print("hello")
+    send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
+    # servers[curr_server_ID].send(json.dumps(mess).encode(format))
 
 def del_group():
     g_ID=int(input("group_id"))
     mess={"type":"del_group","g_ID":g_ID}
-    client.send(json.dumps(mess).encode(format))
+    send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
+    # servers[curr_server_ID].send(json.dumps(mess).encode(format))
     
 def Command(Command_type):
     if Command_type=="create_group":
@@ -179,8 +176,10 @@ def Command(Command_type):
         single_image()
     elif Command_type=="group_message":
         group_message()
-    elif Command_type=="ban":
-        ban()
+    elif Command_type=="kick":
+        kick()
+    elif Command_type=="add":
+        add()
     elif Command_type=="del_group":
         del_group()
     else:
@@ -269,6 +268,7 @@ print("""
     To Group_message-type "group_message" then the message then the message text
     To Create Group-type "create_group" then group id then members(space separated)
     To ban from group-type "ban" then group id and then ban id
+    To add in a group-type "add" then group id and then add id
     To delete Group- type "del_group" then group id
 """)
 # Starting Threads For Listening And Writing
