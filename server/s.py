@@ -103,7 +103,8 @@ def group_message(message,client_ID):
     curr.execute("""
         SELECT "Participants" FROM "Groups" WHERE "ID" = %s
     """,(message["group_id"],))
-    participants = curr.fetchall()[0]
+    participants = curr.fetchone()[0]
+    print(participants)
     participants.remove(client_ID)
     message["Sender"] = client_ID
 
@@ -112,6 +113,8 @@ def group_message(message,client_ID):
     """, (tuple(participants),))
 
     participants_all = curr.fetchall()
+    print(participants_all)
+
     for p in participants_all:
         send_client(p[1],p[0],message)
 
@@ -127,7 +130,9 @@ def kick(message, client_ID):
     old_party=old_party[0]
     print(old_party)
     old_party.remove(message["ban_ID"])
+    print("remove")
     print(old_party)
+    print("removed")
     curr.execute("""
             UPDATE "Groups"
             SET "Participants" = %s
@@ -142,7 +147,9 @@ def kick(message, client_ID):
         SELECT "ID", "Status" FROM "Clients" WHERE "ID" IN %s
     """,(tuple(old_party),))
     old_stat = curr.fetchall()
-
+    print(old_stat)
+    print(message)
+    
     for a in old_stat:
         send_client(a[1],a[0],message)
     
