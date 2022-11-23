@@ -34,7 +34,4 @@ We used the **rsa library** to share the **symmetric keys** generated using **Cr
 
 Every Group has its own **symmetric key** that is known by all the participants of the group.
 
-
-
-  
-
+Link to the presentation := https://docs.google.com/presentation/d/1yoM0s4gLa7gurUzgoDkzBku6EfArWla2hFR1a9-Sf_8/edit?usp=sharing
