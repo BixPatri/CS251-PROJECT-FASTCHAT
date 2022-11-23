@@ -7,23 +7,17 @@ from connect import connect
 from packets import send_msg
 from packets import recv_msg
 import base64
-import sqlite3
-import rsa
-from Crypto.Cipher import AES
-from secrets import token_bytes
 
 buffer = 1024
 format = 'utf-8'
 
-balancerIP = "127.0.0.1"
+balancerIP = "localhost"
 balancerPort = 9091
 
 # my_name = "Kevin"
 # my_pass = "hello"
 my_ID = -1
 curr_server_ID = 0
-private_key = 0
-public_key = 0
 
 (db_conn, db_cur) = connect()
 
@@ -33,23 +27,18 @@ servers = {}
 def get_server(balancer):
     balancer.send("gib server".encode(format))
     server_id = balancer.recv(buffer).decode(format)
-    print(server_id)
     return int(server_id)
 
-def register(server,pub_str):
+def register(server):
     IP = server[1]
     Port = int(server[2])
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
     sock.connect((IP, Port))
-    credentials = {"type":"client_reg", "Name":my_name, "Pass":my_pass, "Public Key":pub_str}
+    credentials = {"type":"client_reg", "Name":my_name, "Pass":my_pass, "Public Key":"1234"}
     sock.send(json.dumps(credentials).encode(format))
     received_info = json.loads(sock.recv(buffer).decode(format))
     id = received_info["ID"]
-    # personal_curr.execute("""
-    #     INSERT INTO 
-    # """)
-    
     print(f"Successfully Registered with ID: {id}")
     sock.close()
 
@@ -64,8 +53,7 @@ def connect_server(server):
     while(True):
         sock.connect((IP, Port))
         global my_pass
-
-        credentials = {"type":"client_auth", "Pass":my_pass, "ID": my_ID}
+        credentials = {"type":"client_auth", "Name":my_name, "Pass":my_pass, "Public Key":"1234", "ID": my_ID}
         sock.send(json.dumps(credentials).encode(format))
 
         allowed = sock.recv(buffer).decode(format)
@@ -85,28 +73,10 @@ def connect_servers():
         SELECT * FROM "Server Info" WHERE "Status"='true'
     """)
     online_servers = db_cur.fetchall()
-    print(online_servers)
 
     global my_ID
-    global personal_conn
-    global personal_curr
-    global public_key
     if my_ID <= 0:
-        (pubkey, privkey) = rsa.newkeys(512)
-        public_key = pubkey
-        priv_str = privkey.save_pkcs1(format='PEM').decode()
-        pub_str = pubkey.save_pkcs1(format='PEM').decode()
-
-        my_ID = register(online_servers[0], pub_str)
-        personal_curr.close()
-        personal_conn.close()
-        os.rename("tmp.db", f"{my_ID}.db")
-        personal_conn = sqlite3.connect(f"{my_ID}.db")
-        personal_curr= personal_conn.cursor() 
-        personal_curr.execute(f"""
-            INSERT INTO "Single_keys" ("ID", "Key") VALUES ({my_ID}, "{priv_str}")
-        """)
-        personal_conn.commit()
+        my_ID = register(online_servers[0])
 
     for server in online_servers:
         connect_server_thread = threading.Thread(target=connect_server, args=(server,))
@@ -118,16 +88,15 @@ def handle_server(server):
         try:
             # message = server.recv(buffer).decode(format)
             message = recv_msg(server).decode(format)
-            # print("hello")
-            # print("msg=", message)
+            print("hello")
+            print("msg", message)
             message = json.loads(message)
 
             # if message["type"] == "single_message":
             #     print(message["ID"], message["message"])
             if message["type"] == "single_message":
-                print(rsa.decrypt(base64.decodebytes(message["message"].encode(format)),private_key).decode(format))
                 # print(message["ID"], message["message"])
-                # print("msg", message)
+                print("msg", message)
             elif message["type"] == "single_image":
                 # print(message["ID"], message["message"])
                 print("image")
@@ -145,38 +114,9 @@ def handle_server(server):
 def single_message():
     recipient = int(input("Reciever"))
     message = input("Message Text")
-    # enc_msg = rsa.encrypt(message.encode(),)
-    # msg = {"type":"single_message", "Recipient":recipient, "message":message, "ID":my_ID}
-    # send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
+    msg = {"type":"single_message", "Recipient":recipient, "message":message, "ID":my_ID}
+    send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
     # servers[curr_server_ID].send(json.dumps(msg).encode(format))
-    local_conn = sqlite3.connect(f"{my_ID}.db")
-    local_curr = local_conn.cursor() 
-    local_curr.execute(f"""
-        SELECT "ID","Key" FROM "Single_keys" WHERE "ID" = {recipient}
-    """)
-
-    a = local_curr.fetchone()
-    if not a:
-        db_cur.execute(f"""
-        SELECT "ID", "Public Key" FROM "Clients" WHERE "ID" = {recipient}
-        """)
-        g = db_cur.fetchone()
-        local_curr.execute(f"""
-            INSERT INTO "Single_Keys" ("ID","Key") VALUES ({g[0]},"{g[1]}")
-        """)
-        local_conn.commit()
-        a=g
-        # msg = {"type":"single_message", "Recipient":recipient, "message":rsa.encrypt(message,g[1]), "ID":my_ID}
-
-        # servers[curr_server_ID].send(json.dumps(msg).encode(format))
-    
-    receiver_pubk = rsa.key.PublicKey.load_pkcs1(a[1].encode(), format='PEM')
-    msg = {"type":"single_message", "Recipient":recipient, "message":base64.encodebytes(rsa.encrypt(message.encode(), receiver_pubk)).decode(format), "ID":my_ID}
-    send_msg(servers[curr_server_ID],json.dumps(msg).encode(format))
-
-    local_curr.close()
-    local_conn.close()
-
 
 def single_image():
     recipient = int(input("Reciever"))
@@ -197,10 +137,6 @@ def group_message():
     # servers[curr_server_ID].send(json.dumps(mess).encode(format))
 
 def create_group():
-    g_encryption_key = token_bytes(16)
-    # personal_curr.execute("""
-    #     INSERT INTO "Group_keys" ("ID")
-    # """)
     g_ID=input("Group_Name")
     mem=input("Members")
     Members=[my_ID]
@@ -321,47 +257,12 @@ my_ID = int(sys.argv[1])
 my_name = input("Enter Your Name: ")
 my_pass = input("Enter Your Password: ")
 
-personal_conn = None
-personal_curr = None
-
-if my_ID <=0 :
-    personal_conn = sqlite3.connect(f"tmp.db")
-    personal_curr=personal_conn.cursor()
-
-else:
-    personal_conn = sqlite3.connect(f"{my_ID}.db")
-    personal_curr=personal_conn.cursor() 
-
-personal_curr.execute("""CREATE TABLE IF NOT EXISTS "Single_keys" 
-(
-    "ID" integer NOT NULL,
-    "Key" text NOT NULL,
-    CONSTRAINT "Single_keys_pkey" PRIMARY KEY ("ID")
-)""")
-
-personal_curr.execute("""CREATE TABLE IF NOT EXISTS "Group_keys" 
-(
-    "ID" integer NOT NULL,
-    "Key" text NOT NULL,
-    CONSTRAINT "Groups_keys_pkey" PRIMARY KEY ("ID")
-)
-""")
-personal_conn.commit()
-
 connect_servers()
 # connect_balancer()
 balancer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 balancer.connect((balancerIP, balancerPort))
     
-personal_curr.execute(f"""
-    SELECT "Key" FROM "Single_keys" WHERE "ID" = {my_ID}
-""")
-
-
-private_str =  personal_curr.fetchone()[0]
-private_key = rsa.key.PrivateKey.load_pkcs1(private_str.encode(), format='PEM')
-print(private_key)
-
+    
 print("""
     To message-type "single_message" then the message then the message text
     To Group_message-type "group_message" then the message then the message text

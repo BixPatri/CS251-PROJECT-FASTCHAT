@@ -3,7 +3,6 @@ import sys
 import threading
 import socket
 import json
-import sqlite3
 from connect import connect
 from packets import send_msg
 from packets import recv_msg
