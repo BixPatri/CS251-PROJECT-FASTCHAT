@@ -165,6 +165,44 @@ def handle_server(server):
                 accept_friend(message)
             elif message["type"] == "friend_key":
                 friend_key(message)
+            elif message["type"]=="New_group":
+                key=Fernet.generate_key()
+                local_conn = sqlite3.connect(f"{my_ID}.db")
+                local_curr = local_conn.cursor() 
+                print(message)
+                # local_curr.execute(f"""
+                #     SELECT "ID","Key" FROM "Single_keys" WHERE "ID" = {recipient}
+                # """)
+                local_curr.execute(f"""
+                    INSERT INTO "Group_keys" ("ID", "Key") VALUES ({message["Group_ID"]}, "{key.decode()}")
+                    """)
+                local_conn.commit()
+                local_curr.close()
+                local_conn.close()
+            elif message["type"]=="Group_add":
+                s=rsa.decrypt(base64.decodebytes(message["message"].encode(format)),private_key).decode(format)
+                print(s)
+                local_conn = sqlite3.connect(f"{my_ID}.db")
+                local_curr = local_conn.cursor() 
+                local_curr.execute(f"""
+                    INSERT INTO "Group_keys" ("ID", "Key") VALUES ({message["Group_ID"]}, "{s}")
+                    """)
+                local_conn.commit()
+                local_curr.close()
+                local_conn.close()
+                
+            elif message["type"] == "group_message":
+                local_conn = sqlite3.connect(f"{my_ID}.db")
+                local_curr = local_conn.cursor()
+                local_curr.execute(f"""
+                    SELECT "Key" FROM "Group_keys" WHERE "ID" = {message["group_id"]}
+                """)
+                k=local_curr.fetchone()[0]
+                obj=Fernet(k.encode())
+                message=obj.decrypt(message["message"].encode()).decode()
+                print(message)
+                local_curr.close()
+                local_conn.close()
             else:
                 print(message)
 
@@ -375,10 +413,21 @@ def single_image():
     local_conn.close()
 
 def group_message():
+    
     Group=int(input("group_id "))
     message=input("Message Text ")
-    mess={"type":"group_message","group_id":Group,"message":message}
+    local_conn = sqlite3.connect(f"{my_ID}.db")
+    local_curr = local_conn.cursor()
+    local_curr.execute(f"""
+        SELECT "Key" FROM "Group_keys" WHERE "ID" = {Group}
+    """)
+    k=local_curr.fetchone()[0]
+    obj=Fernet(k)
+    message=obj.encrypt(message.encode())
+    mess={"type":"group_message","group_id":Group,"message":message.decode()}
     send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
+    local_curr.close()
+    local_conn.close()
     # servers[curr_server_ID].send(json.dumps(mess).encode(format))
 
 def create_group():
@@ -386,13 +435,13 @@ def create_group():
     # personal_curr.execute("""
     #     INSERT INTO "Group_keys" ("ID")
     # """)
+    group_key=Fernet.generate_key()
+    
     g_ID=input("Group_Name")
-    mem=input("Members")
     Members=[my_ID]
-    for member in mem.split():
-        Members.append(int(member))
     mess={"type":"create_group","Group_Name":g_ID,"Members":Members}
     send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
+    
     # servers[curr_server_ID].send(json.dumps(mess).encode(format))
 
 def kick():
@@ -402,11 +451,50 @@ def kick():
     send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
     # servers[curr_server_ID].send(json.dumps(mess).encode(format))
 
+def Welcome_message(recipient,g_id):
+    # recipient = int(input("Reciever"))
+    
+    # enc_msg = rsa.encrypt(message.encode(),)
+    # msg = {"type":"single_message", "Recipient":recipient, "message":message, "ID":my_ID}
+    # send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
+    # servers[curr_server_ID].send(json.dumps(msg).encode(format))
+    local_conn = sqlite3.connect(f"{my_ID}.db")
+    local_curr = local_conn.cursor() 
+    local_curr.execute(f"""
+        SELECT "ID","Public Key" FROM "Single_keys" WHERE "ID" = {recipient}
+    """)
+    a = local_curr.fetchone()
+    
+    
+    if not a:
+        db_cur.execute(f"""
+        SELECT "ID", "Public Key" FROM "Clients" WHERE "ID" = {recipient}
+        """)
+        g = db_cur.fetchone()
+        local_curr.execute(f"""
+            INSERT INTO "Single_Keys" ("ID","Public Key") VALUES ({g[0]},"{g[1]}")
+        """)
+        local_conn.commit()
+        a=g
+    
+    receiver_pubk = rsa.key.PublicKey.load_pkcs1(a[1].encode(), format='PEM')
+    local_curr.execute(f"""
+        SELECT "Key" FROM "Group_keys" WHERE "ID" = {g_id}
+    """)
+    message=local_curr.fetchone()[0]
+    msg = {"type":"Group_add", "Recipient":recipient, "message":base64.encodebytes(rsa.encrypt(message.encode(), receiver_pubk)).decode(format), "ID":my_ID,"Group_ID":g_id}
+    send_msg(servers[curr_server_ID],json.dumps(msg).encode(format))
+
+    local_curr.close()
+    local_conn.close()
+
+
 def add():
     g_ID=int(input("group_id"))
     add_ID=int(input("add ID"))
     mess={"type":"add","g_ID":g_ID, "add_ID":add_ID}
     # print("hello")
+    Welcome_message(add_ID,g_ID)
     send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
     # servers[curr_server_ID].send(json.dumps(mess).encode(format))
 
@@ -532,7 +620,7 @@ personal_curr.execute("""CREATE TABLE IF NOT EXISTS "Group_keys"
 (
     "ID" integer NOT NULL,
     "Name" text,
-    "Symmetric Key" text NOT NULL,
+    "Key" text NOT NULL,
     CONSTRAINT "Groups_keys_pkey" PRIMARY KEY ("ID")
 )
 """)

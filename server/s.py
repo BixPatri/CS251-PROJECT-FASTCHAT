@@ -77,8 +77,8 @@ def create_group(message, client_ID):
 
     gid = (int(curr.fetchone()[0])+1)
 
-    msg = "You are added to group" + message["Group_Name"] + "by" + str(client_ID) + "with Group Id " + str(gid)
-    msg = {"type":"New_group","message":msg}
+    msg = "You are added to group"+ message["Group_Name"]
+    msg = {"type":"New_group","message":msg,"admin":client_ID,"Group_ID":gid}
 
     # print("hm")
     curr.execute("""
@@ -307,6 +307,16 @@ def single_image(message, sender_ID):
     send_client(recipient[1],recipient[0],msg)
     curr.close()
 
+def group_add(message, sender_ID):
+    curr = db_conn.cursor()
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" = %s
+    """, (message["Recipient"],))
+    recipient = curr.fetchone()
+    # msg = {"type": message["type"], "message": message["message"], "ID": sender_ID,"Group_ID":}
+    send_client(recipient[1],recipient[0],message)
+    curr.close()
+
 
 def handle_client(client, client_ID):
     while True:
@@ -330,7 +340,9 @@ def handle_client(client, client_ID):
             elif msg_type == "kick":
                 kick(message, client_ID)    
             elif msg_type == "add":
-                add(message, client_ID)    
+                add(message, client_ID) 
+            elif msg_type == "Group_add":
+                group_add(message,client_ID)   
             else:
                 print("invalid query")
 
