@@ -11,6 +11,7 @@ import sqlite3
 import rsa
 from Crypto.Cipher import AES
 from secrets import token_bytes
+from cryptography.fernet import Fernet
 
 buffer = 1024
 format = 'utf-8'
@@ -104,7 +105,7 @@ def connect_servers():
         personal_conn = sqlite3.connect(f"{my_ID}.db")
         personal_curr= personal_conn.cursor() 
         personal_curr.execute(f"""
-            INSERT INTO "Single_keys" ("ID", "Key") VALUES ({my_ID}, "{priv_str}")
+            INSERT INTO "Single_keys" ("ID", "Name", "Public Key") VALUES ({my_ID},"You", "{priv_str}")
         """)
         personal_conn.commit()
 
@@ -125,14 +126,45 @@ def handle_server(server):
             # if message["type"] == "single_message":
             #     print(message["ID"], message["message"])
             if message["type"] == "single_message":
-                print(rsa.decrypt(base64.decodebytes(message["message"].encode(format)),private_key).decode(format))
+                local_conn = sqlite3.connect(f"{my_ID}.db")
+                local_curr = local_conn.cursor() 
+                local_curr.execute(f"""
+                    SELECT "Symmetric Key" FROM "Single_keys" WHERE "ID" = {message["ID"]}
+                """)
+                key = local_curr.fetchone()[0]
+                key_obj = Fernet(key.encode())
+
+                msg = key_obj.decrypt(message["message"].encode()).decode()
+
+                print(msg)
+                local_curr.close()
+                local_conn.close()
                 # print(message["ID"], message["message"])
                 # print("msg", message)
             elif message["type"] == "single_image":
                 # print(message["ID"], message["message"])
+                local_conn = sqlite3.connect(f"{my_ID}.db")
+                local_curr = local_conn.cursor() 
+                local_curr.execute(f"""
+                    SELECT "Symmetric Key" FROM "Single_keys" WHERE "ID" = {message["ID"]}
+                """)
+                key = local_curr.fetchone()[0]
+                key_obj = Fernet(key.encode())
+
+                msg = key_obj.decrypt(message["message"].encode()).decode()
+
                 print("image")
                 with open("received_"+message["title"], mode='wb') as file:
-                    file.write(base64.decodebytes(message["message"].encode(format)))
+                    file.write(base64.decodebytes(msg.encode(format)))
+
+                local_curr.close()
+                local_conn.close()
+
+                
+            elif message["type"] == "add_friend":
+                accept_friend(message)
+            elif message["type"] == "friend_key":
+                friend_key(message)
             else:
                 print(message)
 
@@ -141,6 +173,105 @@ def handle_server(server):
             server.close()
             print("An error occured!")
             break
+
+
+
+def add_friend():
+    
+    recipient = int(input("Receiver ID? "))
+    # enc_msg = rsa.encrypt(message.encode(),)
+    # msg = {"type":"single_message", "Recipient":recipient, "message":message, "ID":my_ID}
+    # send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
+    # servers[curr_server_ID].send(json.dumps(msg).encode(format))
+    local_conn = sqlite3.connect(f"{my_ID}.db")
+    local_curr = local_conn.cursor() 
+    local_curr.execute(f"""
+        SELECT "ID","Public Key" FROM "Single_keys" WHERE "ID" = {recipient}
+    """)
+
+    a = local_curr.fetchone()
+    if not a:
+        db_cur.execute(f"""
+        SELECT "ID", "Public Key" FROM "Clients" WHERE "ID" = {recipient}
+        """)
+        g = db_cur.fetchone()
+        local_curr.execute(f"""
+            INSERT INTO "Single_Keys" ("ID","Public Key") VALUES ({g[0]},"{g[1]}")
+        """)
+        local_conn.commit()
+        a=g
+        # msg = {"type":"single_message", "Recipient":recipient, "message":rsa.encrypt(message,g[1]), "ID":my_ID}
+
+        # servers[curr_server_ID].send(json.dumps(msg).encode(format))
+    
+    # receiver_pubk = rsa.key.PublicKey.load_pkcs1(a[1].encode(), format='PEM')
+    msg = {"type":"add_friend", "Recipient":recipient}
+    send_msg(servers[curr_server_ID],json.dumps(msg).encode(format))
+
+    local_curr.close()
+    local_conn.close()
+
+
+def accept_friend(message):
+    recipient = message["ID"]
+    print(f"Friend req from {recipient}")
+
+    key = Fernet.generate_key()
+
+    local_conn = sqlite3.connect(f"{my_ID}.db")
+    local_curr = local_conn.cursor() 
+    local_curr.execute(f"""
+        SELECT "ID","Public Key" FROM "Single_keys" WHERE "ID" = {recipient}
+    """)
+
+    a = local_curr.fetchone()
+    if not a:
+        db_cur.execute(f"""
+            SELECT "ID", "Public Key" FROM "Clients" WHERE "ID" = {recipient}
+        """)
+        g = db_cur.fetchone()
+        local_curr.execute(f"""
+            INSERT INTO "Single_Keys" ("ID","Public Key", "Symmetric Key") VALUES ({g[0]},"{g[1]}","{key.decode()}")
+        """)
+        local_conn.commit()
+        a=g
+        # msg = {"type":"single_message", "Recipient":recipient, "message":rsa.encrypt(message,g[1]), "ID":my_ID}
+
+        # servers[curr_server_ID].send(json.dumps(msg).encode(format))
+    else:
+        local_curr.execute(f"""
+            UPDATE "Single_Keys" 
+            SET "Symmetric Key" = "{key.decode()}"
+            WHERE "ID" = {recipient}
+        """)
+    
+    receiver_pubk = rsa.key.PublicKey.load_pkcs1(a[1].encode(), format='PEM')
+    msg = {"type":"friend_key", "Recipient":recipient, "message":base64.encodebytes(rsa.encrypt(key, receiver_pubk)).decode(format), "ID":my_ID}
+    send_msg(servers[curr_server_ID],json.dumps(msg).encode(format))
+
+    local_curr.close()
+    local_conn.close()
+
+
+def friend_key(message):
+    friend = message["ID"]
+    print(f"request accepted from {friend}")
+    key = rsa.decrypt(base64.decodebytes(message["message"].encode(format)),private_key)
+    local_conn = sqlite3.connect(f"{my_ID}.db")
+    local_curr = local_conn.cursor() 
+    print(key.decode())
+    local_curr.execute(f"""
+        UPDATE "Single_Keys" 
+        SET "Symmetric Key" = "{key.decode()}"
+        WHERE "ID" = {friend}
+    """)
+    local_curr.close()
+    local_conn.commit()
+    local_conn.close()
+
+
+
+
 
 def single_message():
     recipient = int(input("Reciever"))
@@ -152,7 +283,7 @@ def single_message():
     local_conn = sqlite3.connect(f"{my_ID}.db")
     local_curr = local_conn.cursor() 
     local_curr.execute(f"""
-        SELECT "ID","Key" FROM "Single_keys" WHERE "ID" = {recipient}
+        SELECT "ID","Public Key","Symmetric Key" FROM "Single_keys" WHERE "ID" = {recipient}
     """)
 
     a = local_curr.fetchone()
@@ -162,7 +293,7 @@ def single_message():
         """)
         g = db_cur.fetchone()
         local_curr.execute(f"""
-            INSERT INTO "Single_Keys" ("ID","Key") VALUES ({g[0]},"{g[1]}")
+            INSERT INTO "Single_Keys" ("ID","Public Key") VALUES ({g[0]},"{g[1]}")
         """)
         local_conn.commit()
         a=g
@@ -170,8 +301,15 @@ def single_message():
 
         # servers[curr_server_ID].send(json.dumps(msg).encode(format))
     
-    receiver_pubk = rsa.key.PublicKey.load_pkcs1(a[1].encode(), format='PEM')
-    msg = {"type":"single_message", "Recipient":recipient, "message":base64.encodebytes(rsa.encrypt(message.encode(), receiver_pubk)).decode(format), "ID":my_ID}
+    # receiver_pubk = rsa.key.PublicKey.load_pkcs1(a[1].encode(), format='PEM')
+    # msg = {"type":"single_message", "Recipient":recipient, "message":base64.encodebytes(rsa.encrypt(message.encode(), receiver_pubk)).decode(format), "ID":my_ID}
+
+    key = a[2].encode()
+    key_obj=Fernet(key)
+    encrypted_message = key_obj.encrypt(message.encode())
+
+    msg = {"type":"single_message", "Recipient":recipient, "message":encrypted_message.decode(format), "ID":my_ID}
+
     send_msg(servers[curr_server_ID],json.dumps(msg).encode(format))
 
     local_curr.close()
@@ -185,9 +323,56 @@ def single_image():
     img = None
     with open(path, mode='rb') as file:
         img = file.read()
-    msg = {"type":"single_image","title": title, "Recipient":recipient, "message":base64.encodebytes(img).decode(format), "ID":my_ID}
-    # msg["message"] = 
-    send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
+    
+    message = base64.encodebytes(img).decode(format)
+    
+    # msg = {"type":"single_image","title": title, "Recipient":recipient, "message":base64.encodebytes(img).decode(format), "ID":my_ID}
+    # # msg["message"] = 
+    # send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
+
+
+    # recipient = int(input("Reciever"))
+    # message = input("Message Text")
+    # enc_msg = rsa.encrypt(message.encode(),)
+    # msg = {"type":"single_message", "Recipient":recipient, "message":message, "ID":my_ID}
+    # send_msg(servers[curr_server_ID], json.dumps(msg).encode(format))
+    # servers[curr_server_ID].send(json.dumps(msg).encode(format))
+    local_conn = sqlite3.connect(f"{my_ID}.db")
+    local_curr = local_conn.cursor() 
+    local_curr.execute(f"""
+        SELECT "ID","Public Key","Symmetric Key" FROM "Single_keys" WHERE "ID" = {recipient}
+    """)
+
+    a = local_curr.fetchone()
+    if not a:
+        db_cur.execute(f"""
+        SELECT "ID", "Public Key" FROM "Clients" WHERE "ID" = {recipient}
+        """)
+        g = db_cur.fetchone()
+        local_curr.execute(f"""
+            INSERT INTO "Single_Keys" ("ID","Public Key") VALUES ({g[0]},"{g[1]}")
+        """)
+        local_conn.commit()
+        a=g
+        # msg = {"type":"single_message", "Recipient":recipient, "message":rsa.encrypt(message,g[1]), "ID":my_ID}
+
+        # servers[curr_server_ID].send(json.dumps(msg).encode(format))
+    
+    # receiver_pubk = rsa.key.PublicKey.load_pkcs1(a[1].encode(), format='PEM')
+    # msg = {"type":"single_message", "Recipient":recipient, "message":base64.encodebytes(rsa.encrypt(message.encode(), receiver_pubk)).decode(format), "ID":my_ID}
+
+    key = a[2].encode()
+    key_obj=Fernet(key)
+    
+    encrypted_message = key_obj.encrypt(message.encode())
+
+    # msg = {"type":"single_message", "Recipient":recipient, "message":encrypted_message.decode(format), "ID":my_ID}
+    msg = {"type":"single_image","title": title, "Recipient":recipient, "message":encrypted_message.decode(format), "ID":my_ID}
+
+    send_msg(servers[curr_server_ID],json.dumps(msg).encode(format))
+
+    local_curr.close()
+    local_conn.close()
 
 def group_message():
     Group=int(input("group_id "))
@@ -234,6 +419,8 @@ def del_group():
 def Command(Command_type):
     if Command_type=="create_group":
         create_group()
+    elif Command_type == "add_friend":
+        add_friend()
     elif Command_type=="single_message":
         single_message()
     elif Command_type == "single_image":
@@ -335,14 +522,17 @@ else:
 personal_curr.execute("""CREATE TABLE IF NOT EXISTS "Single_keys" 
 (
     "ID" integer NOT NULL,
-    "Key" text NOT NULL,
+    "Name" text,
+    "Public Key" text NOT NULL,
+    "Symmetric Key" text,
     CONSTRAINT "Single_keys_pkey" PRIMARY KEY ("ID")
 )""")
 
 personal_curr.execute("""CREATE TABLE IF NOT EXISTS "Group_keys" 
 (
     "ID" integer NOT NULL,
-    "Key" text NOT NULL,
+    "Name" text,
+    "Symmetric Key" text NOT NULL,
     CONSTRAINT "Groups_keys_pkey" PRIMARY KEY ("ID")
 )
 """)
@@ -354,7 +544,7 @@ balancer = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 balancer.connect((balancerIP, balancerPort))
     
 personal_curr.execute(f"""
-    SELECT "Key" FROM "Single_keys" WHERE "ID" = {my_ID}
+    SELECT "Public Key" FROM "Single_keys" WHERE "ID" = {my_ID}
 """)
 
 

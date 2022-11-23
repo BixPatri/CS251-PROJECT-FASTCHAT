@@ -219,6 +219,30 @@ def add(message , client_ID):
 def del_group(message,client_ID):
     pass
 
+
+def add_friend(message, sender_ID):
+    curr = db_conn.cursor()
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" = %s
+    """, (message["Recipient"],))
+    recipient = curr.fetchone()
+    
+    msg = {"type": message["type"], "ID": sender_ID}
+    send_client(recipient[1],recipient[0],msg)
+    curr.close()
+
+def friend_key(message, sender_ID):
+    curr = db_conn.cursor()
+    curr.execute("""
+        SELECT "ID", "Status" FROM "Clients" WHERE "ID" = %s
+    """, (message["Recipient"],))
+    recipient = curr.fetchone()
+    
+    msg = {"type": message["type"], "message": message["message"], "ID": sender_ID}
+    send_client(recipient[1],recipient[0],msg)
+    curr.close()
+
+
 def single_message(message, sender_ID):
     curr = db_conn.cursor()
     curr.execute("""
@@ -293,6 +317,10 @@ def handle_client(client, client_ID):
 
             if msg_type == "single_message":
                 single_message(message, client_ID)
+            elif msg_type == "add_friend":
+                add_friend(message, client_ID)
+            elif msg_type == "friend_key":
+                friend_key(message, client_ID)
             elif msg_type == "single_image":
                 single_image(message, client_ID)
             elif msg_type == "create_group":
