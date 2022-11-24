@@ -7,7 +7,7 @@ import sqlite3
 from connect import connect
 from packets import send_msg
 from packets import recv_msg
-
+import bcrypt
 buffer = 1024
 format = 'utf-8'
 
@@ -26,6 +26,7 @@ clients = {}
 
 (db_conn, db_cur) = connect()
 
+print("Connected to DATABASE")
 def send_client(status, ID, msg):
     # todo: add acknowledgement
     curr = db_conn.cursor()
@@ -455,7 +456,7 @@ def connect_servers():
         SELECT * FROM "Server Info" WHERE "Status"='true'
     """)
     online_servers = db_cur.fetchall()
-
+    print("fetched INFO")
     db_cur.execute(f"""
         UPDATE "Server Info"
         SET "Status" = true
@@ -469,10 +470,7 @@ def connect_servers():
     for server in online_servers:
         connect_server_thread = threading.Thread(target=connect_server, args=(server,))
         connect_server_thread.start()
-
-
-
-
+    print("DONE") 
 # Receiving / Listening Function
 def receive_client(client, ID):
     clients[ID] = client
@@ -491,11 +489,12 @@ def client_reg(credentials):
         SELECT COUNT("ID") FROM "Clients"
     """)
     count = int(curr.fetchone()[0])
-    print(credentials["Pass"])
+    # print(credentials["Pass
+    hashed_pass=bcrypt.hashpw(credentials["Pass"].encode(),bcrypt.gensalt()).decode()
     curr.execute("""
         INSERT INTO "Clients" ("ID","Name", "Password", "Public Key", "Status")
         VALUES (%s, %s, %s, %s, %s)
-    """, (count+1, credentials["Name"], credentials["Pass"], credentials["Public Key"], True))
+    """, (count+1, credentials["Name"], hashed_pass, credentials["Public Key"], True))
     db_conn.commit()    
     curr.close()
 
@@ -510,7 +509,7 @@ def client_verify(credentials):
     
     print(credentials["Pass"])
     print(k)
-    if credentials["Pass"] == k:
+    if bcrypt.checkpw(credentials["Pass"],k):
         curr.close()
         return int(credentials["ID"])
     else:
