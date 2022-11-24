@@ -1,6 +1,46 @@
 from connect import connect
 (db_conn, db_cur) = connect()
 
+
+def create_server():
+    """
+    CREATE ROLE server WITH
+	LOGIN
+	NOSUPERUSER
+	NOCREATEDB
+	NOCREATEROLE
+	INHERIT
+	NOREPLICATION
+	CONNECTION LIMIT -1
+	PASSWORD 'server_pass';
+    """
+
+def create_client():
+    """
+    CREATE ROLE client WITH
+	LOGIN
+	NOSUPERUSER
+	NOCREATEDB
+	NOCREATEROLE
+	INHERIT
+	NOREPLICATION
+	CONNECTION LIMIT -1
+	PASSWORD 'client_pass';
+    """
+
+def create_balancer():
+    """
+    CREATE ROLE balancer WITH
+	LOGIN
+	NOSUPERUSER
+	NOCREATEDB
+	NOCREATEROLE
+	INHERIT
+	NOREPLICATION
+	CONNECTION LIMIT -1
+	PASSWORD 'balancer_pass';
+    """
+
 def client_table():
     db_cur.execute(
         """CREATE TABLE IF NOT EXISTS "Clients"
@@ -48,7 +88,20 @@ def server_add():
         INSERT INTO "Server Info" ("ID","IP","Port","Load","Status") VALUES (%s,%s,%s,0,false);
         """, (serv[0],serv[1],serv[2])
         )
-    
+
+def grant_access():
+    """
+    GRANT SELECT ON TABLE public."Server Info" TO client;
+    GRANT SELECT, UPDATE ON TABLE public."Server Info" TO balancer;
+    GRANT ALL ON TABLE public."Server Info" TO server;  
+    GRANT ALL ON TABLE public."Groups" TO server;
+    GRANT SELECT("ID") ON public."Clients" TO client;
+    GRANT SELECT("Name") ON public."Clients" TO client;
+    GRANT SELECT("Status") ON public."Clients" TO client;
+    GRANT SELECT("Pending Messages") ON public."Clients" TO client;
+    GRANT ALL ON TABLE public."Clients" TO server;
+    """
+
 if __name__ == '__main__':
     db_cur.execute(f"""
         DROP TABLE IF EXISTS "Server Info";
@@ -62,6 +115,9 @@ if __name__ == '__main__':
         DROP TABLE IF EXISTS "Groups";
         """
         )
+    create_server()
+    create_balancer()
+    create_client()
     server_table()
     client_table()
     group_table()
