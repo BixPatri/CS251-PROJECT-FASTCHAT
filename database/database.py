@@ -2,44 +2,44 @@ from connect import connect
 (db_conn, db_cur) = connect()
 
 
-def create_server():
-    db_cur.execute(f"""
-    CREATE ROLE "Server" WITH
-	LOGIN
-	NOSUPERUSER
-	NOCREATEDB
-	NOCREATEROLE
-	INHERIT
-	NOREPLICATION
-	CONNECTION LIMIT -1
-	PASSWORD 'server_pass';
-    """)
+# def create_server():
+#     db_cur.execute(f"""
+#     CREATE ROLE "Server" WITH
+# 	LOGIN
+# 	NOSUPERUSER
+# 	NOCREATEDB
+# 	NOCREATEROLE
+# 	INHERIT
+# 	NOREPLICATION
+# 	CONNECTION LIMIT -1
+# 	PASSWORD 'server_pass';
+#     """)
 
-def create_client():
-    db_cur.execute(f"""
-    CREATE ROLE "Client" WITH
-	LOGIN
-	NOSUPERUSER
-	NOCREATEDB
-	NOCREATEROLE
-	INHERIT
-	NOREPLICATION
-	CONNECTION LIMIT -1
-	PASSWORD 'client_pass';
-    """)
+# def create_client():
+#     db_cur.execute(f"""
+#     CREATE ROLE "Client" WITH
+# 	LOGIN
+# 	NOSUPERUSER
+# 	NOCREATEDB
+# 	NOCREATEROLE
+# 	INHERIT
+# 	NOREPLICATION
+# 	CONNECTION LIMIT -1
+# 	PASSWORD 'client_pass';
+#     """)
 
-def create_balancer():
-    db_cur.execute(f"""
-    CREATE ROLE "Balancer" WITH
-	LOGIN
-	NOSUPERUSER
-	NOCREATEDB
-	NOCREATEROLE
-	INHERIT
-	NOREPLICATION
-	CONNECTION LIMIT -1
-	PASSWORD 'balancer_pass';
-    """)
+# def create_balancer():
+#     db_cur.execute(f"""
+#     CREATE ROLE "Balancer" WITH
+# 	LOGIN
+# 	NOSUPERUSER
+# 	NOCREATEDB
+# 	NOCREATEROLE
+# 	INHERIT
+# 	NOREPLICATION
+# 	CONNECTION LIMIT -1
+# 	PASSWORD 'balancer_pass';
+#     """)
 
 def client_table():
     db_cur.execute(
@@ -89,39 +89,39 @@ def server_add():
         """, (serv[0],serv[1],serv[2],serv[3])
         )
 
-def grant_access():
-    db_cur.execute(
-    f"""
-    GRANT ALL ON TABLE public."Clients" TO "Server";
-    """)
-    db_cur.execute(
-    f"""
-    GRANT SELECT("ID") ON public."Clients" TO "Client";
-    """)
-    db_cur.execute(
-    f"""
-    GRANT SELECT("Public Key") ON public."Clients" TO "Client";
-    """)
-    db_cur.execute(
-    f"""
-    GRANT ALL ON TABLE public."Server Info" TO "Balancer";
-    """)
-    db_cur.execute(
-    f"""
-    GRANT ALL ON TABLE public."Server Info" TO "Server";
-    """)
-    db_cur.execute(
-    f"""
-    GRANT ALL ON TABLE public."Groups" TO "Server";
-    """)
-    db_cur.execute(
-    f"""
-    GRANT SELECT ON TABLE public."Server Info" TO "Client";
-    """)
-    db_cur.execute(
-    f"""
-    GRANT SELECT("Name") ON public."Clients" TO "Client";
-    """)
+# def grant_access():
+#     db_cur.execute(
+#     f"""
+#     GRANT ALL ON TABLE public."Clients" TO "Server";
+#     """)
+#     db_cur.execute(
+#     f"""
+#     GRANT SELECT("ID") ON public."Clients" TO "Client";
+#     """)
+#     db_cur.execute(
+#     f"""
+#     GRANT SELECT("Public Key") ON public."Clients" TO "Client";
+#     """)
+#     db_cur.execute(
+#     f"""
+#     GRANT ALL ON TABLE public."Server Info" TO "Balancer";
+#     """)
+#     db_cur.execute(
+#     f"""
+#     GRANT ALL ON TABLE public."Server Info" TO "Server";
+#     """)
+#     db_cur.execute(
+#     f"""
+#     GRANT ALL ON TABLE public."Groups" TO "Server";
+#     """)
+#     db_cur.execute(
+#     f"""
+#     GRANT SELECT ON TABLE public."Server Info" TO "Client";
+#     """)
+#     db_cur.execute(
+#     f"""
+#     GRANT SELECT("Name") ON public."Clients" TO "Client";
+#     """)
     
 if __name__ == '__main__':
     server_table()
@@ -131,7 +131,7 @@ if __name__ == '__main__':
     # create_balancer()
     # create_client()
     server_add()
-    grant_access()
+    # grant_access()
     db_conn.commit()
     db_conn.close()
     
