@@ -23,6 +23,12 @@ counter = -1
 strategy = sys.argv[1]
 
 def handle_client(sock):
+    """
+    Handles a client and give it a server it should send its next message to.
+
+    :param sock: The socket of the client.
+    :type sock: socket
+    """
     while(True):
         try:
             request = sock.recv(buffer).decode(format)
@@ -36,15 +42,22 @@ def handle_client(sock):
             break
 
 def receive_client():
+    """
+    Receives clients and makes threads of handle function for each client.
+    """
     while(True):
         sock, add = balancer.accept()
         thread = threading.Thread(target=handle_client, args=(sock,))
         thread.start()
         
-def chckload():
-    pass
 
 def return_server(strategy):
+    """
+    Returns a server based on a strategy which is a command line argument to the program
+    
+    :param strategy: The strategy for load balancing namely random, round robin, minimun load.
+    :type strategy: str
+    """
     global counter
     if(strategy == "rand"):
         db_cur.execute("""
