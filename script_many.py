@@ -11,7 +11,7 @@ if not exists("log"): os.makedirs("log")
 
 res=open("results1.csv","w")
 writer=csv.writer(res)
-
+writer.writerow(["type","time"])
 class Client:
     users = []
     user_IDs = []
