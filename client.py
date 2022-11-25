@@ -406,7 +406,6 @@ def handle_group_image(message):
     with open("received_"+message["title"], mode='wb') as file:
         file.write(base64.decodebytes(msg))
 
-    # print(message)
     local_curr.close()
     local_conn.close()
     
@@ -425,7 +424,7 @@ def handle_kick(message):
         local_conn.commit()
         local_curr.close()
         local_conn.close()
-    print(message["message"])
+    print("[Group: " + str(message["g_ID"]) + "] " + ": " + message["message"])
 
 
 def handle_add(message):
@@ -435,7 +434,7 @@ def handle_add(message):
     :param message: The message the person/server sent in dict format with all fields.
     :type message: dict
     """
-    print(message["message"])
+    print("[Group: " + str(message["g_ID"]) + "] " + ": " + message["message"])
 
 # Infinite loop for listening to the server
 def handle_server(server):
@@ -654,8 +653,8 @@ def kick():
     """For kicking someone from a group. It is also ensured that we generate a new key and share to all members except the removed one 
     through RSA for each member. Also only admin can kick from a group.
     """
-    g_ID=int(input("group_id"))
-    ban_ID=int(input("ban ID"))
+    g_ID=int(input("Enter group ID: "))
+    ban_ID=int(input("Enter ID to kick: "))
     mess={"type":"kick","g_ID":g_ID, "ban_ID":ban_ID}
     local_conn = sqlite3.connect(f"{my_ID}.db")
     local_curr = local_conn.cursor() 
@@ -697,7 +696,6 @@ def Send_group_key(recipient,g_id):
     message = local_curr.fetchone()[0]
 
     msg = {"type":"Send_group_key", "Recipient":recipient, "message":base64.encodebytes(rsa.encrypt(message.encode(), receiver_pubk)).decode(format), "ID":my_ID,"Group_ID":g_id}
-    print(msg)
     send_msg(servers[curr_server_ID],json.dumps(msg).encode(format))
 
     local_curr.close()
@@ -723,7 +721,6 @@ def add():
         prev_mem = eval(prev_mem)
     prev_mem.append(add_ID)
     prev_mem = str(prev_mem)
-    print("prev",prev_mem)
     local_curr.execute(f"""
         UPDATE "Group_keys" 
         SET "Members" = "{prev_mem}"
@@ -731,11 +728,8 @@ def add():
     """)
     local_conn.commit()
 
-    print("send grp key")
-    print("send add")
     send_msg(servers[curr_server_ID], json.dumps(mess).encode(format))
     Send_group_key(add_ID, g_ID)
-    print("hello")
 
 def q():
     """
@@ -789,7 +783,7 @@ def execute_command(Command_type):
         group_image()
     elif Command_type=="kick":
         kick()
-    elif Command_type=="add":
+    elif Command_type=="add_member":
         add()
     elif Command_type=="\q":
         q()

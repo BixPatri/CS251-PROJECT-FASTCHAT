@@ -42,7 +42,7 @@ def send_members(message, members):
     """
     if len(members) == 0:
         return
-
+ 
     curr = db_conn.cursor()
 
     curr.execute("""
@@ -248,7 +248,7 @@ def kick(message, sender_ID):
         """, (old_party, message["g_ID"]))
     db_conn.commit()
 
-    message["message"] = str(message["ban_ID"]) + " was KICKED from the group " + str(message["g_ID"]) + "by " + str(sender_ID)
+    message["message"] = str(message["ban_ID"]) + " was KICKED from the group " + str(message["g_ID"]) + " by " + str(sender_ID)
     
     distribute_grp(message,old_party)
     
@@ -257,7 +257,7 @@ def kick(message, sender_ID):
         SELECT "Status" FROM "Clients" WHERE "ID" = %s
     """,(message["ban_ID"],))
     statustokick = curr.fetchone()[0]
-    message["message"] = "You were kicked from group " + str(message["g_ID"]) + " by " + str(sender_ID)
+    message["message"] = "You were KICKED from group " + str(message["g_ID"]) + " by " + str(sender_ID)
     send_client(statustokick,message["ban_ID"],message)
     curr.close()
 
@@ -284,7 +284,7 @@ def add(message , sender_ID):
 
     if admin!=sender_ID:
         return False
-
+    
     new_party=old_party+[]
     new_party.append(message["add_ID"])
     
@@ -306,9 +306,6 @@ def add(message , sender_ID):
     message["message"] = str(message["add_ID"]) + " was added to the group " + str(message["g_ID"]) + " by " + str(sender_ID)
 
     distribute_grp(message,old_party)
-
-    # message["message"] = "You were Added to group " + str(message["g_ID"]) + " by " + str(sender_ID)
-    # send_client(statustoadd,message["add_ID"],message)
     
     db_conn.commit()
     curr.close()
@@ -497,22 +494,14 @@ def handle_client(client, client_ID):
             elif msg_type == "\q":
                 print(f"{client_ID} left")
                 q(client_ID)
+                break
             else:
                 print("invalid query")
 
-        except:
+        except Exception as error:
+            print(f"Error occured while handling client {client_ID} !")
+            print(error)
             q(client_ID)
-            # client.close()
-            # del clients[client_ID]
-            
-            # curr = db_conn.cursor()
-            # curr.execute("""
-            #     UPDATE "Clients"
-            #     SET "Status" = false
-            #     WHERE "ID" = %s
-            # """,(client_ID,))
-            # curr.close()
-            # db_conn.commit()
             break
 
 
