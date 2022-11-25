@@ -124,6 +124,15 @@ def server_add():
 #     """)
     
 if __name__ == '__main__':
+    db_cur.execute("""
+    DROP TABLE IF EXISTS "Server Info"
+    """)
+    db_cur.execute("""
+    DROP TABLE IF EXISTS "Clients"
+    """)
+    db_cur.execute("""
+    DROP TABLE IF EXISTS "Groups"
+    """)
     server_table()
     client_table()
     group_table()
