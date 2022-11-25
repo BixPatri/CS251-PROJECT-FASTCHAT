@@ -27,6 +27,8 @@ This project is a Chat application made using python sockets on terminal with th
 
 - parser.py in client folder parses the csv file and outputs latency and throughputs
 
+- packets.py is helper module which defines send and receive functions
+
 
 ## Running instructions
 
