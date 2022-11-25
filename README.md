@@ -17,23 +17,38 @@ This project is a Chat application made using python sockets on terminal with th
 
 - Each of the folders in this is supposed to be on different machines
 
-- c.py, s.py, balancer.py are the main runner scripts 
+- client.py, server.py, balancer.py are the main runner scripts 
 
 - config.py, connect.py and database.ini in every folder help to connect with the main database.
 
 - database.py sets up the main database 
 
+- script_many.py in client folder runs program automatically and outputs data into results.csv
+
+- parser.py in client folder parses the csv file and outputs latency and throughputs
+
 
 ## Running instructions
-`python3 database.py`
 
-`python3 balancer.py <balancing strategy>`
+1. Go to database directory and setup database using the dumped schema db.sql or execute database.py to setup automatically
 
-`python3 s.py <port> <id>`
+      `python3 database.py`
+     
+2. Go to balancer directory and setup balancer using
+    
+      `python3 balancer.py <balancing_strategy>`
+      
+      (<balancing_strategy> can be specified as "rand" or "round_robin" or "min_load")
 
-`python3 c.py`
+3. Go to server directory and setup servers
+      
+      `python3 server.py <port> <id>`
+      
+      (Use the same Port and ID as specified in the database)
 
+4. Go to client directory and setup clients
 
+      `python3 client.py`
 
 
 ## COMPONENTS
