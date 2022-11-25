@@ -8,6 +8,7 @@ from connect import connect
 from packets import send_msg
 from packets import recv_msg
 import bcrypt
+import psutil
 
 #type variables
 buffer = 1024
@@ -696,6 +697,21 @@ def accept_connections():
             receive_client_thread.start()
 
 
+def update_load():
+    current_process_pid = psutil.Process().pid
+    p = psutil.Process(current_process_pid)
+    while True:
+        tot_load_from_process = p.cpu_percent(interval=3)/psutil.cpu_count()
+        db_cur.execute("""
+            UPDATE "Server Info"
+            SET "Load" = %s
+            WHERE "ID" = %s
+        """,(tot_load_from_process+1, sys.argv[2]))
+        db_conn.commit()
+
+
 if __name__ == "__main__":
+    update_load_thread = threading.Thread(target=update_load)
+    update_load_thread.start()
     connect_servers()
     accept_connections()
