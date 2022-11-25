@@ -2,6 +2,7 @@ import socket
 import threading
 from connect import connect
 import random 
+import sys
 random.seed(0)
 
 format = 'utf-8'
@@ -15,12 +16,18 @@ balancer.listen()
 #Connection with the database
 (db_conn, db_cur) = connect()
 
+#Round robin counter
+counter = -1
+
+# strategy 
+strategy = sys.argv[1]
+
 def handle_client(sock):
     while(True):
         try:
             request = sock.recv(buffer).decode(format)
             print("balancer received")      
-            server_id = str(return_server("rand"))
+            server_id = str(return_server(strategy))
             sock.send(server_id.encode(format))
         except Exception as error:
             print(error)
@@ -38,13 +45,34 @@ def chckload():
     pass
 
 def return_server(strategy):
+    global counter
     if(strategy == "rand"):
         db_cur.execute("""
             SELECT "ID" FROM "Server Info" WHERE "Status" = true 
         """) 
         Ids = db_cur.fetchall()
+        print("Assigned server is ", int(random.choice(Ids)[0]))
         return int(random.choice(Ids)[0])
-    # pass
+    
+    elif (strategy == "round_robin"):
+        db_cur.execute("""
+            SELECT "ID" FROM "Server Info" WHERE "Status" = true 
+        """) 
+        Ids = db_cur.fetchall()
+        size = len(Ids)
+        counter = counter+1
+        print("Assigned server is ", Ids[counter%size][0])
+        return Ids[counter%size][0]
+    
+    elif (strategy == "min_load"):
+        db_cur.execute("""
+            SELECT "ID","Load" FROM "Server Info" WHERE "Status" = true 
+        """) 
+        Ids = db_cur.fetchall()
+        Ids.sort(key=lambda tup: tup[1])
+        to_ret = Ids[0][0]
+        print("Assigned server is ", to_ret)
+        return to_ret
     return -1   
 
 if __name__ == "__main__":
