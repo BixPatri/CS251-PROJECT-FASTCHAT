@@ -6,8 +6,11 @@ import time
 import threading
 import os
 from os.path import exists
-
+import csv
 if not exists("log"): os.makedirs("log")
+
+res=open("results1.csv","w")
+writer=csv.writer(res)
 
 class Client:
     users = []
@@ -38,13 +41,14 @@ class Client:
     def clean(self):
         time.sleep(.02)
         self.log_file.write("Received & "+str(time.perf_counter())+" & "+self.ps.recv().decode())
-        
+        writer.writerow(["Received",time.perf_counter()])
     def single_message(self,friend_ID):
         self.ps.sendline(b"single_message")
         "sent"+str(time.perf_counter())+self.ps.clean().decode()
         self.ps.sendline(str(friend_ID).encode())
         self.ps.clean()
         self.log_file.write("sent & "+str(time.perf_counter())+"\n")
+        writer.writerow(["Sent",time.perf_counter()])
         self.ps.sendline(b"Hello")
         time.sleep(.02)
     def create_group(self):
